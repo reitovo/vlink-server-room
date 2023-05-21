@@ -15,9 +15,9 @@
     </PropertyGroup>
  
     <ItemGroup> 
-        <Protobuf Include="Protobuf/vts_server.proto" GrpcServices="Server" />
-        <Protobuf Include="Protobuf/common.proto" GrpcServices="Server" />
-        <Protobuf Include="Protobuf/admin.proto" GrpcServices="Server" />
+        <Protobuf Include="Protobuf/common.proto" ProtoRoot="Protobuf" GrpcServices="Server" />
+        <Protobuf Include="Protobuf/vts_server.proto" ProtoRoot="Protobuf" GrpcServices="Server" />
+        <Protobuf Include="admin.proto" GrpcServices="Server" />
     </ItemGroup>
 
     <ItemGroup>
