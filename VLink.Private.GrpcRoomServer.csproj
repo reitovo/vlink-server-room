@@ -8,6 +8,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Protobuf Include="Protobuf/common.proto" ProtoRoot="Protobuf" GrpcServices="Server" />
+        <Protobuf Include="Protobuf/vts_server.proto" ProtoRoot="Protobuf" GrpcServices="Server" /> 
+    </ItemGroup>
+
+    <ItemGroup>
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
