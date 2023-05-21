@@ -13,4 +13,20 @@
       </Content>
     </ItemGroup>
 
+    <ItemGroup>
+        <Protobuf Include="Protobuf/common.proto" ProtoRoot="Protobuf" GrpcServices="Server" />
+        <Protobuf Include="Protobuf/vts_server.proto" ProtoRoot="Protobuf" GrpcServices="Server" /> 
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Grpc.AspNetCore" Version="2.52.0" />
+        <PackageReference Include="Grpc.AspNetCore.Server" Version="2.52.0" />
+        <PackageReference Include="Grpc.Core" Version="2.46.6" />
+        <PackageReference Include="Grpc.Tools" Version="2.53.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.2.7" />
+    </ItemGroup>
+
 </Project>
