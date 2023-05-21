@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Grpc.Core;
-using GrpcRoomServer.Services;
+using VLink.Private.GrpcRoomServer.Services;
 using Vts.Server;
-using Peer = GrpcRoomServer.Services.Peer;
+using Peer = VLink.Private.GrpcRoomServer.Services.Peer;
 
-namespace GrpcRoomServer;
+namespace VLink.Private.GrpcRoomServer;
 
 public static class Extension {
    public static (string roomId, string peerId) RoomPeerId(this ServerCallContext ctx) {

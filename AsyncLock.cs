@@ -1,4 +1,4 @@
-namespace GrpcRoomServer; 
+namespace VLink.Private.GrpcRoomServer;
 
 public class AsyncLock {
    private readonly Task<IDisposable> _releaserTask;

@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
-using Google.Protobuf;
-using Google.Protobuf.Collections;
 using Grpc.Core;
 using Vts.Server;
 
-namespace GrpcRoomServer.Services;
+namespace VLink.Private.GrpcRoomServer.Services;
 
 public class Notifier {
    private readonly CancellationTokenSource _linkedToken;
@@ -190,29 +188,6 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
       }
 
       _logger.LogTrace($"Sdp {room.RoomId} {request}");
-
-      if (peer.IsServer) {
-         if (!string.IsNullOrWhiteSpace(request.Turn)) {
-            try {
-               var up = request.Turn.Split("@");
-               var data = Convert.FromHexString(string.Concat(up[0].Split(":")));
-               var ip = IPAddress.Parse(up[1].Contains(':') ? up[1].Split(":")[0] : up[1]).GetAddressBytes();
-               for (var i = 0; i < data.Length; ++i) {
-                  data[i] ^= ip[i % ip.Length];
-               }
-
-               var meta = FrameFormatSetting.Parser.ParseFrom(data);
-               if (meta != null) {
-                  room.MaxFormat = meta;
-                  _logger.LogTrace($"set max quality {meta}");
-               }
-            } catch (Exception) {
-               _logger.LogError($"retrieve max quality from turn server {request.Turn}");
-            }
-         } else {
-            room.MaxFormat = null;
-         }
-      }
 
       to.Notifier.Enqueue(new Notify() {
          Sdp = request
