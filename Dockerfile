@@ -1,8 +1,8 @@
 # Run first: dotnet publish VLink.Private.GrpcRoomServer.csproj -c Release -o ./publish /p:UseAppHost=false
  
-FROM mcr.microsoft.com/dotnet/aspnet:7.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app 
-EXPOSE 443  
+EXPOSE 5020
 
 COPY ./publish .
 ENTRYPOINT ["dotnet", "VLink.Private.GrpcRoomServer.dll"]
