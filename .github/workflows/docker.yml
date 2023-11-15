@@ -25,7 +25,8 @@ jobs:
     - name: Build the app
       working-directory: vlink
       run: |
-        dotnet publish VLink.Private.GrpcRoomServer.csproj -c Release -o ../app /p:UseAppHost=false
+        dotnet publish VLink.Private.GrpcRoomServer.csproj -c Release -o ./publish /p:UseAppHost=false
     
     - name: Build the Docker image
-      run: docker build . --file ./vlink/Dockerfile --tag vlink-server-room:$(date +%s)
+      working-directory: vlink
+      run: docker build . --file Dockerfile --tag vlink-server-room:$(date +%s)
