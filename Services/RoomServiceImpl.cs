@@ -43,14 +43,25 @@ public class Peer {
    public int NatType { get; set; }
    public int SortingOrder { get; set; }
    public Notifier Notifier { get; set; }
+   public string Gpu { get; set; }
+   public string Capture { get; set; }
+   public bool Sharing { get; set; }
+   public bool IsWireless { get; set; }
+   public bool Is2G4Wireless { get; set; }
+   public long RxSpeed { get; set; }
+   public long TxSpeed { get; set; }
+   public long RxBytes { get; set; }
+   public long TxBytes { get; set; }
 }
 
 public class Room {
    public required string RoomId { get; set; }
    public required string CreatorPeerId { get; set; }
+   public required DateTimeOffset CreateTime { get; set; }
    public FrameFormatSetting Format { get; set; }
    public FrameFormatSetting MaxFormat { get; set; }
    public ConcurrentDictionary<string, Peer> Peers { get; } = new();
+   public string Turn { get; set; }
    public NotifyPeers PeersList {
       get {
          var ret = new NotifyPeers();
@@ -71,14 +82,9 @@ public class Room {
    }
 }
 
-public class RoomServiceImpl : RoomService.RoomServiceBase {
-   private readonly ILogger<RoomServiceImpl> _logger;
+public class RoomServiceImpl(ILogger<RoomServiceImpl> logger) : RoomService.RoomServiceBase {
 
-   public RoomServiceImpl(ILogger<RoomServiceImpl> logger) {
-      _logger = logger;
-   }
-
-   private static readonly ConcurrentDictionary<string, Room> Rooms = new();
+   public static readonly ConcurrentDictionary<string, Room> Rooms = new();
 
    private void SafeRemovePeerFromRoom(Room room, Peer peer) {
       room.Peers.TryRemove(peer.PeerId, out _);
@@ -93,9 +99,12 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
 
    public override Task<RspRoomInfo> CreateRoom(ReqCreateRoom request, ServerCallContext context) {
       var roomId = Guid.NewGuid().ToString().ToLower();
+      logger.LogTrace($"Create Room {roomId} {request}");
+
       var room = new Room() {
          RoomId = roomId,
          CreatorPeerId = request.PeerId,
+         CreateTime = DateTimeOffset.Now,
          Format = request.Format
       };
       Rooms[roomId] = room;
@@ -109,13 +118,13 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
          RoomId = roomId,
          Format = room.Format
       };
-      _logger.LogTrace($"Create Room {roomId} {request.PeerId}");
       return Task.FromResult(resp);
    }
 
    public override Task<RspRoomInfo> JoinRoom(ReqJoinRoom request, ServerCallContext context) {
       if (!Rooms.TryGetValue(request.RoomId, out var room))
          throw new RpcException(new Status(StatusCode.NotFound, "room not found"));
+      logger.LogTrace($"Join Room {request}");
 
       var peer = new Peer() {
          PeerId = request.PeerId,
@@ -127,13 +136,13 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
          RoomId = room.RoomId,
          Format = room.Format
       };
-      _logger.LogTrace($"Join Room {request.RoomId} {request.PeerId}");
       return Task.FromResult(resp);
    }
 
-   public override async Task ReceiveNotify(ReqCommon request, IServerStreamWriter<Notify> responseStream,
+   public async override Task ReceiveNotify(ReqCommon request, IServerStreamWriter<Notify> responseStream,
       ServerCallContext context) {
       var (room, peer) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Receive Notify {room.RoomId} {peer.PeerId} {request}");
       var notifier = peer.Notifier = new(responseStream, context.CancellationToken);
       notifier.Enqueue(new Notify() {
          Peers = room.PeersList
@@ -143,28 +152,26 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
             await Task.Delay(TimeSpan.FromMilliseconds(10), notifier.CancellationToken);
             await peer.Notifier.SendAsync();
          } catch (TaskCanceledException) {
-            _logger.LogInformation($"Notify Loop Exit {room} {peer}");
+            logger.LogInformation($"Notify Loop Exit {room.RoomId} {peer.PeerId}");
             SafeRemovePeerFromRoom(room, peer);
          } catch (Exception ex) {
-            _logger.LogError(ex, "Notify Loop Error");
+            logger.LogError(ex, "Notify Loop Error");
             SafeRemovePeerFromRoom(room, peer);
          }
       }
    }
 
-   public override Task<RspCommon> SetNatType(ReqNatType request, ServerCallContext context) {
-      var (room, peer) = context.RoomPeer(Rooms);
-      peer.NatType = request.NatType;
-      room.BroadcastPeersList();
-      return Task.FromResult(new RspCommon());
-   }
-
-   public override Task<RspCommon> SetRtt(ReqRtt request, ServerCallContext context) {
+   public override Task<RspCommon> SetStat(ReqStat request, ServerCallContext context) {
       var (room, _) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Set Rtt {room.RoomId} {request}");
 
-      foreach (var r in request.Rtt) {
+      foreach (var r in request.Stats) {
          if (room.Peers.TryGetValue(r.Key, out var p)) {
-            p.Rtt = r.Value;
+            p.RxBytes = (long)r.Value.RxBytes;
+            p.TxBytes = (long)r.Value.TxBytes;
+            p.RxSpeed = (long)r.Value.RxSpeed;
+            p.TxSpeed = (long)r.Value.TxSpeed;
+            p.Rtt = r.Value.Rtt;
          }
       }
       room.BroadcastPeersList();
@@ -173,7 +180,7 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
 
    public override Task<RspCommon> RequestIdr(ReqIdr request, ServerCallContext context) {
       var (room, _) = context.RoomPeer(Rooms);
-      _logger.LogTrace($"Request Idr {room.RoomId} {request}");
+      logger.LogTrace($"Request Idr {room.RoomId} {request}");
 
       if (!room.Peers.TryGetValue(request.PeerId, out var to)) {
          throw new RpcException(new Status(StatusCode.NotFound, "to peer not found"));
@@ -185,8 +192,39 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
       return Task.FromResult(new RspCommon());
    }
 
+   public override Task<RspCommon> SetNatType(ReqNatType request, ServerCallContext context) {
+      var (room, peer) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Set Nat Type {room.RoomId} {peer.PeerId} {request}");
+      peer.NatType = request.NatType;
+      room.BroadcastPeersList();
+      return Task.FromResult(new RspCommon());
+   }
+
+   public override Task<RspCommon> SetShareInfo(ReqShareInfo request, ServerCallContext context) {
+      var (room, peer) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Set ShareInfo {room.RoomId} {peer.PeerId} {request}");
+      peer.Gpu = request.Gpu;
+      peer.Capture = request.Capture;
+      peer.Sharing = request.Start;
+      return Task.FromResult(new RspCommon());
+   }
+
+   public override Task<RspCommon> SetRtt(ReqRtt request, ServerCallContext context) {
+      var (room, _) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Set Rtt {room.RoomId} {request}");
+
+      foreach (var r in request.Rtt) {
+         if (room.Peers.TryGetValue(r.Key, out var p)) {
+            p.Rtt = r.Value;
+         }
+      }
+      room.BroadcastPeersList();
+      return Task.FromResult(new RspCommon());
+   }
+
    public override Task<RspCommon> SetSdp(Sdp request, ServerCallContext context) {
       var (room, peer) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Set Sdp {room.RoomId} {request}");
 
       if (request.FromPeerId != peer.PeerId) {
          throw new RpcException(new Status(StatusCode.InvalidArgument, "from peer not match"));
@@ -195,7 +233,29 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
          throw new RpcException(new Status(StatusCode.NotFound, "to peer not found"));
       }
 
-      _logger.LogTrace($"Sdp {room.RoomId} {request}");
+      if (peer.IsServer) {
+         if (!string.IsNullOrWhiteSpace(request.Turn)) {
+            room.Turn = request.Turn;
+            try {
+               var up = request.Turn.Split("@");
+               var data = Convert.FromHexString(string.Concat(up[0].Split(":")));
+               var ip = IPAddress.Parse(up[1].Contains(':') ? up[1].Split(":")[0] : up[1]).GetAddressBytes();
+               for (var i = 0; i < data.Length; ++i) {
+                  data[i] ^= ip[i % ip.Length];
+               }
+
+               var meta = FrameFormatSetting.Parser.ParseFrom(data);
+               if (meta != null) {
+                  room.MaxFormat = meta;
+                  logger.LogTrace($"set max quality {meta}");
+               }
+            } catch (Exception) {
+               logger.LogError($"retrieve max quality from turn server {request.Turn}");
+            }
+         } else {
+            room.MaxFormat = null;
+         }
+      }
 
       to.Notifier.Enqueue(new Notify() {
          Sdp = request
@@ -205,16 +265,19 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
 
    public override Task<RspCommon> SetNickName(ReqNickname request, ServerCallContext context) {
       var (room, peer) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Set NickName {room.RoomId} {peer.PeerId} {request}");
+
       peer.Nick = request.Nick;
       room.BroadcastPeersList();
       return Task.FromResult(new RspCommon());
    }
 
    public override Task<RspCommon> SetFrameFormat(FrameFormatSetting request, ServerCallContext context) {
-      var (room, peer) = context.RoomPeerVerifyCreator(Rooms);
+      var (room, _) = context.RoomPeerVerifyCreator(Rooms);
+      logger.LogTrace($"Set Frame Format {room.RoomId} {request}");
 
       if (room.MaxFormat != null) {
-         _logger.LogTrace($"quality req = {request} max = {room.MaxFormat}");
+         logger.LogTrace($"Quality Max = {room.MaxFormat}");
          request.FrameHeight = Math.Min(request.FrameHeight, room.MaxFormat.FrameHeight);
          request.FrameWidth = Math.Min(request.FrameWidth, room.MaxFormat.FrameWidth);
          request.FrameQuality = Math.Min(request.FrameQuality, room.MaxFormat.FrameQuality);
@@ -228,6 +291,8 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
 
    public override Task<RspCommon> Exit(ReqCommon request, ServerCallContext context) {
       var (room, peer) = context.RoomPeer(Rooms);
+      logger.LogTrace($"Exit {room.RoomId} {peer.PeerId} {request}");
+
       SafeRemovePeerFromRoom(room, peer);
       return Task.FromResult(new RspCommon());
    }
