@@ -171,9 +171,17 @@ public class RoomServiceImpl : RoomService.RoomServiceBase {
       return Task.FromResult(new RspCommon());
    }
 
-   public override Task<RspCommon> RequestIdr(ReqCommon request, ServerCallContext context) {
+   public override Task<RspCommon> RequestIdr(ReqIdr request, ServerCallContext context) {
       var (room, _) = context.RoomPeer(Rooms);
-      room.BroadcastForceIdr();
+      _logger.LogTrace($"Request Idr {room.RoomId} {request}");
+
+      if (!room.Peers.TryGetValue(request.PeerId, out var to)) {
+         throw new RpcException(new Status(StatusCode.NotFound, "to peer not found"));
+      }
+
+      to.Notifier.Enqueue(new Notify() {
+         ForceIdr = new NotifyCommon()
+      });
       return Task.FromResult(new RspCommon());
    }
 
