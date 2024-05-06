@@ -14,8 +14,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Protobuf Include="Protobuf/common.proto" ProtoRoot="Protobuf" GrpcServices="Server" />
-        <Protobuf Include="Protobuf/vts_server.proto" ProtoRoot="Protobuf" GrpcServices="Server" /> 
+        <Protobuf Include="../../../Client/VTSLink/proto/common.proto" ProtoRoot="../../../Client/VTSLink/proto" GrpcServices="Server" />
+        <Protobuf Include="../../../Client/VTSLink/proto/vts_server.proto" ProtoRoot="../../../Client/VTSLink/proto" GrpcServices="Server" /> 
     </ItemGroup>
 
     <ItemGroup>
