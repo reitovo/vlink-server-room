@@ -53,6 +53,16 @@ public static class Extension {
       }
    }
 
+   public static void BroadcastTurn(this Room room) {
+      foreach (var p in room.Peers) {
+         p.Value.Notifier?.Enqueue(new Notify() {
+            Turn = new TurnInfo() {
+               Turn = room.Turn ?? string.Empty
+            }
+         });
+      }
+   }
+   
    public static void BroadcastRoomDestroy(this Room room) {
       foreach (var p in room.Peers.Where(a => !a.Value.IsServer)) {
          p.Value.Notifier?.Enqueue(new Notify() {
